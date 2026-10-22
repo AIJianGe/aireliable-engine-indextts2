@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IndexTTS2 语音合成引擎</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>IndexTTS2 <span class="sub">语音合成引擎</span></h1>
+  <div class="engine-state">
+    <span id="state-badge" class="badge">未连接</span>
+    <span id="state-detail" class="state-detail">—</span>
+    <button id="btn-refresh-status" class="btn btn-ghost" title="刷新引擎状态">刷新</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============ 左列：设置区 + 参数区 ============ -->
+  <div class="left-col">
+
+    <!-- ◆ 设置区 -->
+    <section class="panel panel-settings" id="panel-settings">
+      <h2>⚙ 设置</h2>
+      <div class="field-row">
+        <label>合成模式</label>
+        <div class="seg" id="mode-seg">
+          <button class="seg-btn active" data-mode="clone" title="仅音色参考音频克隆">克隆</button>
+          <button class="seg-btn" data-mode="emo_clone" title="音色 + 情感参考音频">情感克隆</button>
+          <button class="seg-btn" data-mode="emo_vector" title="音色 + 8 维情感向量">情感向量</button>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>模型变体</label>
+        <select id="variant-select">
+          <option value="">自动（默认变体）</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <label>&nbsp;</label>
+        <div style="display:flex;gap:8px">
+          <button id="btn-load" class="btn btn-secondary">加载模型</button>
+          <button id="btn-unload" class="btn btn-danger">卸载模型</button>
+        </div>
+      </div>
+      <div class="hint" id="mode-hint">
+        克隆（clone）：仅音色参考音频，零样本音色复刻
+      </div>
+    </section>
+
+    <!-- ◆ 参数区 -->
+    <section class="panel panel-params" id="panel-params">
+      <h2>🎛 参数</h2>
+
+      <!-- 音色参考（必填）：平台音色库 或 上传自定义 -->
+      <div class="field">
+        <label>音色参考 <span class="req">（必填）</span></label>
+        <div class="voice-row">
+          <select id="voice-select">
+            <option value="">— 选择平台音色 —</option>
+          </select>
+          <button id="btn-refresh-voices" class="btn btn-ghost" title="刷新平台音色库">🔄</button>
+        </div>
+        <div class="voice-preview" id="voice-preview"></div>
+        <div class="hint">从平台音色库选择，或上传自定义参考音频（5-10 秒清晰人声效果最佳）</div>
+        <div class="dropzone dropzone-mini" id="speaker-dropzone">
+          <input type="file" id="speaker-file-input" accept="audio/*" hidden>
+          <p>🎙 上传自定义参考音频（点击 / 拖拽）</p>
+        </div>
+        <div id="speaker-chip-box"></div>
+      </div>
+
+      <!-- 情感克隆模式专属：情感参考音频 + alpha -->
+      <div class="field emo-field" id="emo-clone-field" style="display:none">
+        <label>情感参考音频 <span class="req">（情感克隆模式必填）</span></label>
+        <div class="dropzone dropzone-mini" id="emotion-dropzone">
+          <input type="file" id="emotion-file-input" accept="audio/*" hidden>
+          <p>🎭 上传情感参考音频（点击 / 拖拽）</p>
+        </div>
+        <div id="emotion-chip-box"></div>
+        <div class="slider-block">
+          <label for="emotion-alpha">情感权重 (alpha) <span class="val" id="emotion-alpha-val">1.0</span></label>
+          <input type="range" id="emotion-alpha" min="0" max="1" step="0.05" value="1.0">
+          <span class="hint">0.0 = 无情感，1.0 = 完全情感</span>
+        </div>
+      </div>
+
+      <!-- 情感向量模式专属：8 维滑块 -->
+      <div class="field emo-field" id="emo-vector-field" style="display:none">
+        <label>8 维情感向量 <span class="hint-inline">（至少一维非零）</span></label>
+        <div class="emo-grid" id="emo-grid"></div>
+      </div>
+
+      <div class="field">
+        <label for="text-input">合成文本 <span class="req">（必填）</span></label>
+        <textarea id="text-input" rows="4" placeholder="请输入要合成的文本（支持中英文）…"></textarea>
+      </div>
+
+      <!-- 高级参数折叠面板（对应 Gradio Accordion） -->
+      <details class="advanced">
+        <summary>▸ 高级参数</summary>
+        <div class="adv-grid">
+          <div class="field">
+            <label for="top-p">top_p <span class="val" id="top-p-val">0.8</span></label>
+            <input type="range" id="top-p" min="0" max="1" step="0.05" value="0.8">
+          </div>
+          <div class="field">
+            <label for="top-k">top_k <span class="val" id="top-k-val">30</span></label>
+            <input type="range" id="top-k" min="0" max="100" step="1" value="30">
+          </div>
+          <div class="field">
+            <label for="temperature">temperature <span class="val" id="temperature-val">0.8</span></label>
+            <input type="range" id="temperature" min="0" max="2" step="0.05" value="0.8">
+          </div>
+          <div class="field">
+            <label for="rep-penalty">重复惩罚 <span class="val" id="rep-penalty-val">10.0</span></label>
+            <input type="range" id="rep-penalty" min="0" max="50" step="0.5" value="10">
+          </div>
+          <div class="field">
+            <label for="max-mel">max_mel_tokens <span class="val" id="max-mel-val">1500</span></label>
+            <input type="range" id="max-mel" min="100" max="3000" step="100" value="1500">
+          </div>
+          <div class="field">
+            <label for="max-text">单段最大文本 token <span class="val" id="max-text-val">120</span></label>
+            <input type="range" id="max-text" min="10" max="300" step="10" value="120">
+          </div>
+          <div class="field">
+            <label for="seed">随机种子</label>
+            <input type="number" id="seed" value="-1" min="-1" title="-1 = 随机">
+          </div>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <!-- ============ 右列：结果区 ============ -->
+  <div class="right-col">
+
+    <!-- ◆ 结果区 -->
+    <section class="panel panel-result" id="panel-result">
+      <h2>🔊 生成结果</h2>
+
+      <div class="gen-bar">
+        <button id="btn-generate" class="btn btn-primary btn-large">生成语音</button>
+        <div class="progress-wrap" id="progress-wrap" style="display:none">
+          <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+          <span class="progress-text" id="progress-text">准备中…</span>
+        </div>
+      </div>
+
+      <div class="error-box" id="error-box" style="display:none">
+        <button class="err-close" onclick="this.parentElement.style.display='none'">×</button>
+        <pre id="error-text"></pre>
+      </div>
+
+      <div class="result-view result-view-audio" id="result-view">
+        <p class="placeholder">合成结果将显示在这里</p>
+      </div>
+
+      <div class="result-meta" id="result-meta"></div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  IndexTTS2 TTS Engine · 引擎直连模式（/ui → 7005） · <span id="footer-mode"></span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,378 @@
+# ============================================================
+# IndexTTS2 TTS 引擎 manifest（v0.4.3+）
+# ------------------------------------------------------------
+# v0.4.3 决策：
+#   - paradigm: integrated（全自定义模式，继承 CustomEngine）
+#   - 挂载 Gradio 5.45.0 UI（非工作流编辑器）
+#   - 模型布局：voice/tts/indextts2/IndexTTS-2/（含主模型 + hf_cache 辅助模型）
+#   - 音色库：完全使用平台音色库 /v1/voices，废弃原生 presets
+#
+# 字段规范详见 PR/development-guide.md §30 manifest.yaml v0.2 规范
+# 校验逻辑见 core/src/core/manifest_schema.py
+# 辅助模型多仓库下载见 PR/development-guide.md §28.20A.4
+#
+# 模型下载：
+#   主模型（7 个文件）从 HuggingFace IndexTeam/IndexTTS-2 下载
+#   辅助模型（4 个独立 HF 仓库）：
+#     - facebook/w2v-bert-2.0（整仓，~2GB）
+#     - amphion/MaskGCT（semantic_codec/model.safetensors，单文件）
+#     - funasr/campplus（campplus_cn_common.bin，单文件）
+#     - nvidia/bigvgan_v2_22khz_80band_256x（整仓，2 个文件）
+# ============================================================
+
+# ===== v0.1 必需字段 =====
+engine_id: indextts2_b7c3d9e1
+engine_name: IndexTTS2-TTS
+engine_version: 0.1.0
+aireliable_compat: ">=0.0.16"
+uv_env_name: voice-indextts2
+export_mode: source
+
+# ===== v0.1 可选字段 =====
+description: "IndexTTS2 零样本语音克隆 + 情感控制 TTS 引擎（clone/emo_clone/emo_vector）"
+
+# ===== v0.2 新增字段 =====
+engine_uid: aireliable://indexteam/voice/indextts2_tts
+paradigm: integrated
+sdk_version: ">=0.3.0"
+
+# 作者信息（v0.2.7：author = "在 AIReliable 平台上做封装的作者"）
+author:
+  name: AI剑歌
+
+# 第三方开源引用
+third_party_references:
+  - name: IndexTTS2
+    author: Bilibili
+    github: https://github.com/index-tts/index-tts
+    website: https://github.com/index-tts/index-tts
+    license: LicenseRef-Bilibili-IndexTTS
+    description: 引擎核心 TTS（零样本克隆 + 情感控制）能力来自 Bilibili 的 IndexTTS2 模型
+
+# 来源信息
+source:
+  type: github
+  github_repo: index-tts/index-tts
+  branch: main
+
+# 升级信息
+upgrade:
+  check_url: https://api.github.com/repos/index-tts/index-tts/releases/latest
+  auto_check: false
+
+# 节点包依赖（integrated 范式不依赖节点包）
+node_packages: []
+
+# ============================================================
+# v0.2.5+ 引擎环境配置（env_config 块）
+# 供 EngineEnvManager 读取以决定是否检测 torch、默认 CUDA 版本等。
+# IndexTTS2 基于 torch + indextts 执行 GPU 推理，依赖 torch>=2.8.0 + cu128。
+# Gradio 5.45.0 与 VoxCPM 的 Gradio 6.0+ 通过独立 venv 隔离，互不影响。
+# ============================================================
+env_config:
+  requires_torch: true
+  torch_version_constraint: '>=2.8.0'
+  default_cuda_version: cu128
+  supported_cuda_versions:
+    - cu121
+    - cu124
+    - cu126
+    - cu128
+  requires_python: '>=3.10,<3.13'
+  notes: 'IndexTTS2 基于 torch + indextts 执行 GPU 语音合成推理，Gradio 5.45.0 独立 venv 隔离'
+  # v0.2.12+ 引擎推荐版本组合
+  recommended_versions:
+    torch: '2.8.0'
+    torchvision: null
+    torchaudio: null
+    reason: 'IndexTTS2 测试通过的稳定版本组合（torch 2.8.0 + cu128）'
+
+# ============================================================
+# v0.2.1 新增：models 块（模型分类规范化）
+#
+# IndexTTS2 模型目录结构：
+#   models/voice/tts/indextts2/IndexTTS-2/
+#     ├── config.yaml              # 主模型配置
+#     ├── bpe.model                # BPE tokenizer
+#     ├── gpt.pth                  # GPT 自回归模型权重
+#     ├── s2mel.pth                # s2mel flow 模型权重
+#     ├── wav2vec2bert_stats.pt    # w2v-bert 特征统计
+#     ├── feat2.pt                  # 情感矩阵（config.yaml: emo_matrix: feat2.pt）
+#     ├── feat1.pt                  # 说话人矩阵（config.yaml: spk_matrix: feat1.pt）
+#     ├── qwen0.6bemo4-merge/       # Qwen 情感分析子模型（11 个文件，~1.2GB）
+#     └── hf_cache/                # 辅助模型缓存
+#         ├── w2v-bert-2.0/        # facebook/w2v-bert-2.0（整仓，~2GB）
+#         ├── semantic_codec_model.safetensors  # amphion/MaskGCT
+#         ├── campplus_cn_common.bin            # funasr/campplus
+#         └── bigvgan/             # nvidia/bigvgan_v2_22khz_80band_256x
+#             ├── config.json
+#             └── bigvgan_generator.pt
+# ============================================================
+models:
+  # ===== 模型目录布局 =====
+  model_layout:
+    base: voice/tts/indextts2/
+
+  # ===== 默认 variant（v0.3.0 新增）=====
+  # BaseEngine.infer 的 auto-load 优先级：request.variant > default_variant > None
+  default_variant: IndexTeam/IndexTTS-2
+
+  # ===== 模型变体列表 =====
+  # v0.3.6+ variant.name 必须为 author/model 格式（命名空间规范）
+  variants:
+    # ----- IndexTTS-2（主力模型，24kHz，中英，零样本克隆 + 情感控制） -----
+    - name: IndexTeam/IndexTTS-2
+      alias: IndexTTS-2
+      base_model: IndexTTS-2
+      precision: fp16
+      loader: indextts2
+      vram_required: 8GB
+      path: voice/tts/indextts2/IndexTTS-2
+      model_file_ids:
+        # 主模型（7 个文件）
+        - indextts2-config
+        - indextts2-bpe
+        - indextts2-gpt
+        - indextts2-s2mel
+        - indextts2-w2v-stats
+        - indextts2-emo-matrix
+        - indextts2-spk-matrix
+        # Qwen 情感分析子模型（IndexTeam/IndexTTS-2 仓库 qwen0.6bemo4-merge/ 子目录，11 个文件）
+        - indextts2-qwen-emo
+        # 辅助模型（4 个独立 HF 仓库）
+        - indextts2-aux-w2v-bert
+        - indextts2-aux-semantic-codec
+        - indextts2-aux-campplus
+        - indextts2-aux-bigvgan
+      uv_env: envs/voice-indextts2
+      default_steps: 1
+      default_guidance: 1.0
+
+  # ===== 模型文件清单 =====
+  # 主模型从 IndexTeam/IndexTTS-2 下载（7 个文件）
+  # 辅助模型从 4 个独立 HF 仓库下载（详见 §28.20A.4）
+  #
+  # v0.4.x 互斥下载标记：
+  #   IndexTTS2 只有 1 个 variant（IndexTeam/IndexTTS-2），所有 11 个文件都是必需的，
+  #   无互斥分组（exclusive_group 留空）。所有文件 required_for: [IndexTeam/IndexTTS-2]，
+  #   前端"按 variant 下载"模式下选中该 variant 即下载全部 11 个文件。
+  model_files:
+    # ============================================================
+    # 主模型（7 个文件，来自 IndexTeam/IndexTTS-2）
+    # ============================================================
+
+    # ----- 1. 主模型配置文件（标志文件） -----
+    - id: indextts2-config
+      role: main
+      filename: config.yaml
+      target_dir: voice/tts/indextts2/IndexTTS-2
+      format: yaml
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      source:
+          type: huggingface
+          repo_id: IndexTeam/IndexTTS-2
+          filename: config.yaml
+          url: https://huggingface.co/IndexTeam/IndexTTS-2/resolve/main/config.yaml
+          mirror_url: https://hf-mirror.com/IndexTeam/IndexTTS-2/resolve/main/config.yaml
+      description: "IndexTTS-2 主模型配置文件（标志文件）"
+
+    # ----- 2. BPE tokenizer -----
+    - id: indextts2-bpe
+      role: weights
+      filename: bpe.model
+      target_dir: voice/tts/indextts2/IndexTTS-2
+      format: bin
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      source:
+          type: huggingface
+          repo_id: IndexTeam/IndexTTS-2
+          filename: bpe.model
+          url: https://huggingface.co/IndexTeam/IndexTTS-2/resolve/main/bpe.model
+          mirror_url: https://hf-mirror.com/IndexTeam/IndexTTS-2/resolve/main/bpe.model
+      description: "BPE tokenizer 模型"
+
+    # ----- 3. GPT 自回归模型权重 -----
+    - id: indextts2-gpt
+      role: weights
+      filename: gpt.pth
+      target_dir: voice/tts/indextts2/IndexTTS-2
+      format: pth
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      source:
+          type: huggingface
+          repo_id: IndexTeam/IndexTTS-2
+          filename: gpt.pth
+          url: https://huggingface.co/IndexTeam/IndexTTS-2/resolve/main/gpt.pth
+          mirror_url: https://hf-mirror.com/IndexTeam/IndexTTS-2/resolve/main/gpt.pth
+      description: "GPT 自回归模型权重（~1.5GB）"
+
+    # ----- 4. s2mel flow 模型权重 -----
+    - id: indextts2-s2mel
+      role: weights
+      filename: s2mel.pth
+      target_dir: voice/tts/indextts2/IndexTTS-2
+      format: pth
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      source:
+          type: huggingface
+          repo_id: IndexTeam/IndexTTS-2
+          filename: s2mel.pth
+          url: https://huggingface.co/IndexTeam/IndexTTS-2/resolve/main/s2mel.pth
+          mirror_url: https://hf-mirror.com/IndexTeam/IndexTTS-2/resolve/main/s2mel.pth
+      description: "s2mel flow 模型权重（~800MB）"
+
+    # ----- 5. w2v-bert 特征统计 -----
+    - id: indextts2-w2v-stats
+      role: weights
+      filename: wav2vec2bert_stats.pt
+      target_dir: voice/tts/indextts2/IndexTTS-2
+      format: pt
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      source:
+          type: huggingface
+          repo_id: IndexTeam/IndexTTS-2
+          filename: wav2vec2bert_stats.pt
+          url: https://huggingface.co/IndexTeam/IndexTTS-2/resolve/main/wav2vec2bert_stats.pt
+          mirror_url: https://hf-mirror.com/IndexTeam/IndexTTS-2/resolve/main/wav2vec2bert_stats.pt
+      description: "w2v-bert 特征统计文件"
+
+    # ----- 6. 情感矩阵（实际文件名 feat2.pt，对应 config.yaml 的 emo_matrix: feat2.pt） -----
+    - id: indextts2-emo-matrix
+      role: weights
+      filename: feat2.pt
+      target_dir: voice/tts/indextts2/IndexTTS-2
+      format: pt
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      source:
+          type: huggingface
+          repo_id: IndexTeam/IndexTTS-2
+          filename: feat2.pt
+          url: https://huggingface.co/IndexTeam/IndexTTS-2/resolve/main/feat2.pt
+          mirror_url: https://hf-mirror.com/IndexTeam/IndexTTS-2/resolve/main/feat2.pt
+      description: "情感矩阵（IndexTTS2 实际从 config.yaml 的 emo_matrix 项读取路径，值为 feat2.pt）"
+
+    # ----- 7. 说话人矩阵（实际文件名 feat1.pt，对应 config.yaml 的 spk_matrix: feat1.pt） -----
+    - id: indextts2-spk-matrix
+      role: weights
+      filename: feat1.pt
+      target_dir: voice/tts/indextts2/IndexTTS-2
+      format: pt
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      source:
+          type: huggingface
+          repo_id: IndexTeam/IndexTTS-2
+          filename: feat1.pt
+          url: https://huggingface.co/IndexTeam/IndexTTS-2/resolve/main/feat1.pt
+          mirror_url: https://hf-mirror.com/IndexTeam/IndexTTS-2/resolve/main/feat1.pt
+      description: "说话人矩阵（IndexTTS2 实际从 config.yaml 的 spk_matrix 项读取路径，值为 feat1.pt）"
+
+    # ----- 8. Qwen 情感分析子模型（整仓 marker，11 个文件，~1.2GB） -----
+    # IndexTTS2 库通过 ``self.qwen_emo = QwenEmotion(os.path.join(self.model_dir, self.cfg.qwen_emo_path))``
+    # 加载 config.yaml 的 ``qwen_emo_path: qwen0.6bemo4-merge/`` 子目录下的 Qwen 模型。
+    # 该子目录位于 IndexTeam/IndexTTS-2 仓库的 ``qwen0.6bemo4-merge/`` 路径下，
+    # 包含 11 个文件（model.safetensors ~1.19GB 为关键权重 + tokenizer/config 等）。
+    # 用 marker 类型 + key_files 实现整仓下载（参考 indextts2-aux-w2v-bert 设计）。
+    - id: indextts2-qwen-emo
+      role: weights
+      filename: config.json
+      target_dir: voice/tts/indextts2/IndexTTS-2/qwen0.6bemo4-merge
+      format: marker
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      key_files:
+        - config.json
+        - generation_config.json
+        - model.safetensors
+        - tokenizer.json
+        - tokenizer_config.json
+        - vocab.json
+        - merges.txt
+        - special_tokens_map.json
+        - added_tokens.json
+        - chat_template.jinja
+        - Modelfile
+      source:
+          type: huggingface
+          repo_id: IndexTeam/IndexTTS-2
+          filename: qwen0.6bemo4-merge/config.json
+          url: https://huggingface.co/IndexTeam/IndexTTS-2/resolve/main/qwen0.6bemo4-merge/config.json
+          mirror_url: https://hf-mirror.com/IndexTeam/IndexTTS-2/resolve/main/qwen0.6bemo4-merge/config.json
+      description: "Qwen 情感分析子模型（整仓，IndexTeam/IndexTTS-2 仓库 qwen0.6bemo4-merge/ 子目录，~1.2GB）"
+
+    # ============================================================
+    # 辅助模型（4 个独立 HF 仓库，详见 §28.20A.4）
+    # ============================================================
+
+    # ----- 辅助模型 1：w2v-bert-2.0（整仓，~2.3GB） -----
+    # v0.2.16+ 修订：HF 仓库 facebook/w2v-bert-2.0 实际只有 4 个文件
+    # （无 tokenizer 文件，因为 Wav2Vec2BertModel 是音频编码器不需要 tokenizer）。
+    # 旧 manifest 声明的 pytorch_model.bin / tokenizer_config.json / vocab.json /
+    # spm.model / special_tokens_map.json 在仓库中均不存在 → HTTP 404。
+    - id: indextts2-aux-w2v-bert
+      role: weights
+      filename: config.json
+      target_dir: voice/tts/indextts2/IndexTTS-2/hf_cache/w2v-bert-2.0
+      format: marker
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      key_files:
+        - config.json
+        - preprocessor_config.json
+        - model.safetensors
+      source:
+          type: huggingface
+          repo_id: facebook/w2v-bert-2.0
+          filename: config.json
+          url: https://huggingface.co/facebook/w2v-bert-2.0/resolve/main/config.json
+          mirror_url: https://hf-mirror.com/facebook/w2v-bert-2.0/resolve/main/config.json
+      description: "w2v-bert-2.0 特征提取器（SeamlessM4T）整仓，约 2.3GB"
+
+    # ----- 辅助模型 2：semantic_codec（单文件） -----
+    - id: indextts2-aux-semantic-codec
+      role: weights
+      filename: semantic_codec_model.safetensors
+      target_dir: voice/tts/indextts2/IndexTTS-2/hf_cache
+      format: safetensors
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      source:
+          type: huggingface
+          repo_id: amphion/MaskGCT
+          filename: semantic_codec/model.safetensors
+          url: https://huggingface.co/amphion/MaskGCT/resolve/main/semantic_codec/model.safetensors
+          mirror_url: https://hf-mirror.com/amphion/MaskGCT/resolve/main/semantic_codec/model.safetensors
+      description: "MaskGCT 语义编码器权重"
+
+    # ----- 辅助模型 3：campplus（单文件） -----
+    - id: indextts2-aux-campplus
+      role: weights
+      filename: campplus_cn_common.bin
+      target_dir: voice/tts/indextts2/IndexTTS-2/hf_cache
+      format: bin
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      source:
+          type: huggingface
+          repo_id: funasr/campplus
+          filename: campplus_cn_common.bin
+          url: https://huggingface.co/funasr/campplus/resolve/main/campplus_cn_common.bin
+          mirror_url: https://hf-mirror.com/funasr/campplus/resolve/main/campplus_cn_common.bin
+      description: "CAMPPlus 说话人编码器"
+
+    # ----- 辅助模型 4：bigvgan（整仓，2 个文件） -----
+    - id: indextts2-aux-bigvgan
+      role: weights
+      filename: config.json
+      target_dir: voice/tts/indextts2/IndexTTS-2/hf_cache/bigvgan
+      format: marker
+      required_for: [IndexTeam/IndexTTS-2]      # v0.4.x：单 variant，所有文件必需
+      key_files:
+        - config.json
+        - bigvgan_generator.pt
+      source:
+          type: huggingface
+          repo_id: nvidia/bigvgan_v2_22khz_80band_256x
+          filename: config.json
+          url: https://huggingface.co/nvidia/bigvgan_v2_22khz_80band_256x/resolve/main/config.json
+          mirror_url: https://hf-mirror.com/nvidia/bigvgan_v2_22khz_80band_256x/resolve/main/config.json
+      description: "BigVGAN 声码器（22kHz 80band 256x）"
+
+  # ===== LoRA 扫描配置（v0.1 不支持运行时切换，目录留空） =====
+  loras:
+    scan_dir: voice/tts/indextts2/loras/
