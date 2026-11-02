@@ -23,7 +23,7 @@
 # ===== v0.1 必需字段 =====
 engine_id: indextts2_b7c3d9e1
 engine_name: IndexTTS2-TTS
-engine_version: 0.1.0
+engine_version: 1.0.0
 aireliable_compat: ">=0.0.16"
 uv_env_name: voice-indextts2
 export_mode: source
@@ -57,8 +57,8 @@ source:
 
 # 升级信息
 upgrade:
-  check_url: https://api.github.com/repos/index-tts/index-tts/releases/latest
-  auto_check: false
+  check_url: https://api.github.com/repos/AIJianGe/aireliable-engine-indextts2/releases/latest
+  auto_check: true
 
 # 节点包依赖（integrated 范式不依赖节点包）
 node_packages: []
@@ -163,6 +163,7 @@ models:
 
     # ----- 1. 主模型配置文件（标志文件） -----
     - id: indextts2-config
+      size_bytes: 2882
       role: main
       filename: config.yaml
       target_dir: voice/tts/indextts2/IndexTTS-2
@@ -178,6 +179,7 @@ models:
 
     # ----- 2. BPE tokenizer -----
     - id: indextts2-bpe
+      size_bytes: 475997
       role: weights
       filename: bpe.model
       target_dir: voice/tts/indextts2/IndexTTS-2
@@ -193,6 +195,7 @@ models:
 
     # ----- 3. GPT 自回归模型权重 -----
     - id: indextts2-gpt
+      size_bytes: 3484663079
       role: weights
       filename: gpt.pth
       target_dir: voice/tts/indextts2/IndexTTS-2
@@ -208,6 +211,7 @@ models:
 
     # ----- 4. s2mel flow 模型权重 -----
     - id: indextts2-s2mel
+      size_bytes: 1202198223
       role: weights
       filename: s2mel.pth
       target_dir: voice/tts/indextts2/IndexTTS-2
@@ -223,6 +227,7 @@ models:
 
     # ----- 5. w2v-bert 特征统计 -----
     - id: indextts2-w2v-stats
+      size_bytes: 9343
       role: weights
       filename: wav2vec2bert_stats.pt
       target_dir: voice/tts/indextts2/IndexTTS-2
@@ -238,6 +243,7 @@ models:
 
     # ----- 6. 情感矩阵（实际文件名 feat2.pt，对应 config.yaml 的 emo_matrix: feat2.pt） -----
     - id: indextts2-emo-matrix
+      size_bytes: 374866
       role: weights
       filename: feat2.pt
       target_dir: voice/tts/indextts2/IndexTTS-2
@@ -253,6 +259,7 @@ models:
 
     # ----- 7. 说话人矩阵（实际文件名 feat1.pt，对应 config.yaml 的 spk_matrix: feat1.pt） -----
     - id: indextts2-spk-matrix
+      size_bytes: 57170
       role: weights
       filename: feat1.pt
       target_dir: voice/tts/indextts2/IndexTTS-2
@@ -327,6 +334,7 @@ models:
 
     # ----- 辅助模型 2：semantic_codec（单文件） -----
     - id: indextts2-aux-semantic-codec
+      size_bytes: 177183712
       role: weights
       filename: semantic_codec_model.safetensors
       target_dir: voice/tts/indextts2/IndexTTS-2/hf_cache
@@ -342,6 +350,7 @@ models:
 
     # ----- 辅助模型 3：campplus（单文件） -----
     - id: indextts2-aux-campplus
+      size_bytes: 28036335
       role: weights
       filename: campplus_cn_common.bin
       target_dir: voice/tts/indextts2/IndexTTS-2/hf_cache
