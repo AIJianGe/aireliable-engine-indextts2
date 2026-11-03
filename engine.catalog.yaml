@@ -1,0 +1,44 @@
+# 开源引擎中心展示元数据（任务 80 / T4.1）
+schema: 1
+engine_id: indextts2_b7c3d9e1
+
+name:
+  zh: "IndexTTS2 语音克隆"
+  en: "IndexTTS2-TTS"
+
+description:
+  zh: "IndexTTS2 零样本语音克隆引擎，支持情感控制与音色复刻（clone / emo_clone / emo_vector）。"
+  en: "IndexTTS2 zero-shot voice cloning engine with emotion control and timbre cloning (clone / emo_clone / emo_vector)."
+
+category: voice
+tags:
+  - tts
+  - voice-clone
+  - emotion
+
+repository:
+  github: AIJianGe/aireliable-engine-indextts2
+  gitee: AIJianGe/aireliable-engine-indextts2
+
+cover: catalog/covers/indextts2_b7c3d9e1.webp
+
+requirements:
+  python: ">=3.10,<3.13"
+  torch: ">=2.5.0"
+  gpu: required
+
+license: PolyForm-Noncommercial-1.0.0
+
+description_long:
+  zh: |-
+    IndexTTS2 提供零样本语音克隆：给一段参考音频即可复刻音色，不需要针对说话人做额外训练或微调。
+
+    引擎提供 clone、emo_clone、emo_vector 三种模式：clone 只复刻音色；emo_clone 从参考音频中迁移情绪；emo_vector 用情感向量精确控制语气强度。适合配音、有声书、虚拟人与短视频口播。
+
+    需要 NVIDIA GPU 与 torch >= 2.5.0。参考音频建议干净无背景音乐，时长与信噪比会直接影响克隆相似度。
+  en: |-
+    IndexTTS2 provides zero-shot voice cloning: a single reference clip is enough to reproduce a timbre, with no per-speaker training or fine-tuning.
+
+    Three modes are available: clone reproduces timbre only, emo_clone transfers emotion from the reference clip, and emo_vector controls emotional intensity through a vector. It suits dubbing, audiobooks, avatars and short-form narration.
+
+    An NVIDIA GPU and torch >= 2.5.0 are required. Reference audio should be clean and free of background music; length and signal-to-noise ratio directly affect cloning similarity.

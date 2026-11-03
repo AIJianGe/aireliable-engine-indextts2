@@ -11,6 +11,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from aireliable_engine import EngineConfig as BaseEngineConfig
+
 # ===========================================================================
 # 常量
 # ===========================================================================
@@ -45,7 +47,7 @@ MODEL_SUBDIR = _resolve_model_subdir()
 # ===========================================================================
 
 @dataclass
-class EngineConfig:
+class EngineConfig(BaseEngineConfig):
     """IndexTTS2 引擎配置。
 
     字段对齐 VoxCPM EngineConfig，适配 IndexTTS2 参数：
@@ -54,29 +56,16 @@ class EngineConfig:
         - log_dir: logs/engines/（v0.2.15+ 统一，依赖 AIRELIABLE_LOG_DIR）
     """
 
-    # 基础
+    # 基础（身份 / 端口默认值由本引擎覆盖，其余公共字段见基类）
     engine_id: str = ENGINE_ID
     engine_name: str = ENGINE_NAME
     capability: str = CAPABILITY
     engine_type: str = ENGINE_TYPE
     port: int = DEFAULT_PORT
-    host: str = "127.0.0.1"
-
-    # 路径
-    models_root: Path = Path("models")
-    data_root: Path = Path("data")
-    project_root: Path = Path(".")
-    output_root: Path = Path("output")
 
     # 推导路径（init=False）
     model_dir: Path = field(init=False)
     log_dir: Path = field(init=False)
-
-    # 设备
-    device: str = "auto"
-
-    # 日志
-    log_level: str = "INFO"
 
     def __post_init__(self) -> None:
         self.model_dir = self.models_root / MODEL_SUBDIR

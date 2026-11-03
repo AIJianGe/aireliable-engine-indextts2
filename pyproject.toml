@@ -1,6 +1,6 @@
 [project]
 name = "indextts2-engine"
-version = "0.1.0"
+version = "1.0.0"
 description = "AIReliable IndexTTS2 TTS 引擎（全自定义模式，零样本克隆 + 情感控制）"
 requires-python = ">=3.10,<3.13"
 dependencies = []

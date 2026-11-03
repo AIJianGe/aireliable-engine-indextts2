@@ -31,6 +31,13 @@ from typing import Any, Optional
 
 import numpy as np
 
+# 任务 71：设备探测 / 显存查询统一走 SDK（平台与引擎同一份事实源）
+from aireliable_engine.device import (
+    get_device_name as _sdk_get_device_name,
+    query_free_vram_gb as _sdk_query_free_vram_gb,
+    resolve_device as _sdk_resolve_device,
+)
+
 from .config import EngineConfig
 
 logger = logging.getLogger(__name__)
@@ -738,7 +745,9 @@ class IndexTTS2Wrapper:
     # ===================================================================
 
     def _resolve_device(self, device: str) -> str:
-        """解析设备字符串（project-rules.md §第二部分 §4）。
+        """解析设备字符串（任务 71：委托 SDK ``device.resolve_device``）。
+
+        ``auto`` → 有 GPU 返回 ``cuda:0``，否则 ``cpu``；显式值原样返回。
 
         Args:
             device: auto / cpu / cuda:0 / cuda:1
@@ -746,38 +755,20 @@ class IndexTTS2Wrapper:
         Returns:
             实际设备字符串（cuda:0 / cpu）
         """
-        if device == "auto":
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    return "cuda:0"
-                return "cpu"
-            except ImportError:
-                return "cpu"
-        return device
+        if device != "auto":
+            return device
+        return _sdk_resolve_device("auto", cuda_index=0)
 
     def _get_device_name(self, device: str) -> str:
-        """获取设备的显示名称。
+        """获取设备显示名称（任务 71：委托 SDK ``device.get_device_name``）。
 
         Args:
             device: cuda:0 / cpu / cuda:1 等
 
         Returns:
-            设备显示名称：
-                - cuda:0 → "NVIDIA GeForce RTX 4090"（实际 GPU 名称）
-                - cpu    → "CPU"
+            设备显示名称（GPU 卡名 / "CPU"）
         """
-        if device == "cpu":
-            return "CPU"
-        try:
-            import torch
-            if torch.cuda.is_available():
-                gpu_idx = int(device.split(":")[1]) if ":" in device else 0
-                name = torch.cuda.get_device_name(gpu_idx)
-                return name or device
-        except (ImportError, ValueError, RuntimeError):
-            pass
-        return device
+        return _sdk_get_device_name(device)
 
     def _check_vram_available(self, device: str, required_gb: float = _REQUIRED_VRAM_GB_FP16) -> bool:
         """加载前预检显存（详见 architecture.md §3.5 显存预检机制）。
@@ -786,6 +777,9 @@ class IndexTTS2Wrapper:
             - gpu+cpu 策略：记录警告并返回 False（调用方降级 CPU 加载）
             - 其余策略（auto/gpu）：抛 RuntimeError（中文提示 + 解决建议），
               不尝试加载，避免 PyTorch OOM 异常的原始英文信息暴露给用户。
+
+        任务 71：显存查询改用 SDK ``query_free_vram_gb(source="torch")``，
+        保持与原 ``torch.cuda.mem_get_info()`` 相同的数据源。
 
         Args:
             device: 推理设备
@@ -801,35 +795,28 @@ class IndexTTS2Wrapper:
         if not device.startswith("cuda"):
             return True  # CPU 模式无需预检
 
-        try:
-            import torch
-            if not torch.cuda.is_available():
-                return True
-            free_bytes, total_bytes = torch.cuda.mem_get_info()
-            free_gb = free_bytes / (1024 ** 3)
-            if free_gb < required_gb:
-                if self._device_policy == "gpu+cpu":
-                    logger.warning(
-                        "显存预检不足: free=%.2fGB < required=%.2fGB（gpu+cpu 策略，降级 CPU）",
-                        free_gb, required_gb,
-                    )
-                    return False
+        free_gb = _sdk_query_free_vram_gb(source="torch")
+        if free_gb is None:
+            # torch 不可用 / 查询异常 → 与旧实现一致：跳过预检
+            logger.warning("显存预检异常(跳过): torch 显存查询不可用")
+            return True
+
+        if free_gb < required_gb:
+            if self._device_policy == "gpu+cpu":
                 logger.warning(
-                    "显存预检失败: free=%.2fGB < required=%.2fGB",
+                    "显存预检不足: free=%.2fGB < required=%.2fGB（gpu+cpu 策略，降级 CPU）",
                     free_gb, required_gb,
                 )
-                raise RuntimeError(
-                    f"GPU 显存不足：空闲 {free_gb:.2f}GB < 需要 {required_gb}GB。"
-                    f"建议：1) 关闭其他占用显存的程序 2) 切换到 CPU 模式 3) 卸载其他已加载的引擎"
-                )
-            logger.info("显存预检通过: free=%.2fGB >= required=%.2fGB", free_gb, required_gb)
-            return True
-        except RuntimeError as e:
-            if "显存不足" in str(e):
-                raise  # 友好错误直接抛出
-            logger.warning("显存预检异常(跳过): %s", e)
-        except Exception as e:
-            logger.warning("显存预检异常(跳过): %s", e)
+                return False
+            logger.warning(
+                "显存预检失败: free=%.2fGB < required=%.2fGB",
+                free_gb, required_gb,
+            )
+            raise RuntimeError(
+                f"GPU 显存不足：空闲 {free_gb:.2f}GB < 需要 {required_gb}GB。"
+                f"建议：1) 关闭其他占用显存的程序 2) 切换到 CPU 模式 3) 卸载其他已加载的引擎"
+            )
+        logger.info("显存预检通过: free=%.2fGB >= required=%.2fGB", free_gb, required_gb)
         return True
 
     def get_vram_used(self) -> int:
